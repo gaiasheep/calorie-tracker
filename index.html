@@ -2,118 +2,673 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
   <title>食物热量分析器</title>
   <style>
-    body { font-family: sans-serif; max-width: 480px; margin: 40px auto; padding: 0 16px; }
-    h1 { font-size: 1.4rem; color: #333; }
-    select, input[type=file] { width: 100%; padding: 8px; margin: 8px 0; box-sizing: border-box; }
-    button { width: 100%; padding: 12px; background: #4A90D9; color: #fff;
-             border: none; border-radius: 6px; font-size: 1rem; cursor: pointer; }
-    button:disabled { background: #aaa; }
-    #preview { width: 100%; max-height: 240px; object-fit: cover;
-               margin: 12px 0; border-radius: 8px; display: none; }
-    #result { margin-top: 16px; padding: 12px; background: #f4f4f4;
-              border-radius: 8px; display: none; }
-    .row { display: flex; justify-content: space-between; padding: 4px 0;
-           border-bottom: 1px solid #ddd; }
-    .label { color: #666; }
-    .value { font-weight: bold; }
-    #error { color: red; margin-top: 12px; }
+    /* ── 基础重置 ────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* ── 设计 Token ──────────────────────────────────── */
+    :root {
+      --cyan-400:   #00C2CB;
+      --cyan-500:   #00A8CC;
+      --cyan-600:   #0090B3;
+      --cyan-glow:  rgba(0, 194, 203, 0.35);
+      --cyan-soft:  rgba(0, 168, 204, 0.08);
+      --bg:         #f0f4f8;
+      --card:       rgba(255, 255, 255, 0.78);
+      --border:     rgba(0, 168, 204, 0.18);
+      --text-main:  #1a2535;
+      --text-muted: #6b7a8d;
+      --text-light: #95a5a6;
+      --success-bg: rgba(0, 194, 203, 0.06);
+      --radius:     18px;
+      --shadow-sm:  0 2px 12px rgba(0,0,0,0.06);
+      --shadow-md:  0 8px 32px rgba(0, 168, 204, 0.14);
+      --shadow-lg:  0 16px 48px rgba(0, 168, 204, 0.22);
+      --trans:      all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* ── 页面背景 ────────────────────────────────────── */
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+                   "Hiragino Sans GB", sans-serif;
+      background: var(--bg);
+      background-image:
+        radial-gradient(ellipse at 20% 0%, rgba(0,194,203,0.12) 0%, transparent 55%),
+        radial-gradient(ellipse at 80% 100%, rgba(0,168,204,0.10) 0%, transparent 55%);
+      min-height: 100vh;
+      padding: 24px 16px 48px;
+      color: var(--text-main);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── 主容器 ──────────────────────────────────────── */
+    .container {
+      max-width: 480px;
+      margin: 0 auto;
+    }
+
+    /* ── 页头 ────────────────────────────────────────── */
+    .header {
+      text-align: center;
+      margin-bottom: 28px;
+    }
+    .header .icon-wrap {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 64px; height: 64px;
+      background: linear-gradient(135deg, var(--cyan-400), var(--cyan-600));
+      border-radius: 20px;
+      font-size: 2rem;
+      margin-bottom: 14px;
+      box-shadow: 0 8px 24px var(--cyan-glow);
+    }
+    .header h1 {
+      font-size: 1.55rem;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+      color: var(--text-main);
+    }
+    .header p {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      margin-top: 6px;
+    }
+
+    /* ── 卡片（磨砂玻璃） ─────────────────────────────── */
+    .card {
+      background: var(--card);
+      backdrop-filter: blur(16px) saturate(1.6);
+      -webkit-backdrop-filter: blur(16px) saturate(1.6);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px 20px;
+      box-shadow: var(--shadow-sm);
+      margin-bottom: 16px;
+    }
+
+    /* ── 标签 ────────────────────────────────────────── */
+    .form-label {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    /* ── 餐别选择器 ──────────────────────────────────── */
+    .meal-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+    .meal-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      padding: 10px 4px;
+      background: transparent;
+      border: 1.5px solid #dde3ea;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: var(--trans);
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      font-family: inherit;
+    }
+    .meal-btn .emoji { font-size: 1.4rem; }
+    .meal-btn:hover {
+      border-color: var(--cyan-400);
+      color: var(--cyan-500);
+      background: var(--cyan-soft);
+    }
+    .meal-btn.active {
+      border-color: var(--cyan-400);
+      background: var(--cyan-soft);
+      color: var(--cyan-500);
+      font-weight: 600;
+      box-shadow: 0 0 0 3px rgba(0,194,203,0.15);
+    }
+    /* 隐藏的 select 用于表单值 */
+    #mealType { display: none; }
+
+    /* ── 相机上传区 ──────────────────────────────────── */
+    .upload-zone {
+      position: relative;
+      border: 2px dashed #c8d4de;
+      border-radius: 14px;
+      background: rgba(240,244,248,0.5);
+      overflow: hidden;
+      transition: var(--trans);
+      cursor: pointer;
+    }
+    .upload-zone:hover {
+      border-color: var(--cyan-400);
+      background: var(--cyan-soft);
+    }
+    .upload-zone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      width: 100%; height: 100%;
+      opacity: 0;
+      cursor: pointer;
+      z-index: 2;
+    }
+    .upload-placeholder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 36px 20px;
+      pointer-events: none;
+    }
+    .upload-placeholder .cam-icon {
+      font-size: 2.4rem;
+      filter: grayscale(0.3);
+    }
+    .upload-placeholder .up-title {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+    .upload-placeholder .up-sub {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+    }
+
+    /* ── 预览图 ──────────────────────────────────────── */
+    #preview {
+      display: none;
+      width: 100%;
+      max-height: 260px;
+      object-fit: cover;
+      border-radius: 12px;
+      margin-top: 12px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    /* ── 提交按钮 ────────────────────────────────────── */
+    .btn-submit {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      padding: 15px;
+      margin-top: 20px;
+      background: linear-gradient(135deg, var(--cyan-400) 0%, var(--cyan-600) 100%);
+      color: #fff;
+      border: none;
+      border-radius: 14px;
+      font-size: 1rem;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      letter-spacing: 0.2px;
+      box-shadow: 0 6px 20px var(--cyan-glow);
+      transition: var(--trans);
+    }
+    .btn-submit:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 28px var(--cyan-glow);
+    }
+    .btn-submit:active:not(:disabled) {
+      transform: translateY(0);
+      box-shadow: 0 4px 12px var(--cyan-glow);
+    }
+    .btn-submit:disabled {
+      background: linear-gradient(135deg, #b0bec5, #90a4ae);
+      box-shadow: none;
+      cursor: not-allowed;
+    }
+
+    /* ── Spinner ─────────────────────────────────────── */
+    .spinner {
+      width: 18px; height: 18px;
+      border: 2.5px solid rgba(255,255,255,0.35);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      display: none;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── 进度条 ──────────────────────────────────────── */
+    .progress-wrap {
+      display: none;
+      margin-top: 14px;
+      height: 4px;
+      background: #dde3ea;
+      border-radius: 99px;
+      overflow: hidden;
+    }
+    .progress-bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--cyan-400), var(--cyan-600));
+      border-radius: 99px;
+      transition: width 0.4s ease;
+      animation: progress-glow 1.5s ease-in-out infinite alternate;
+    }
+    @keyframes progress-glow {
+      from { box-shadow: 0 0 4px var(--cyan-400); }
+      to   { box-shadow: 0 0 10px var(--cyan-400); }
+    }
+
+    /* ── 错误提示 ────────────────────────────────────── */
+    .error-box {
+      display: none;
+      margin-top: 12px;
+      padding: 12px 14px;
+      background: rgba(231,76,60,0.08);
+      border: 1px solid rgba(231,76,60,0.25);
+      border-radius: 10px;
+      color: #c0392b;
+      font-size: 0.85rem;
+      line-height: 1.5;
+    }
+
+    /* ── 结果卡片 ────────────────────────────────────── */
+    .result-card {
+      display: none;
+      background: var(--card);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px 20px;
+      box-shadow: var(--shadow-md);
+      animation: slide-up 0.4s cubic-bezier(0.4,0,0.2,1);
+    }
+    @keyframes slide-up {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .result-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+    .result-header .check-circle {
+      width: 32px; height: 32px;
+      background: linear-gradient(135deg, var(--cyan-400), var(--cyan-600));
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1rem;
+      flex-shrink: 0;
+      box-shadow: 0 4px 12px var(--cyan-glow);
+    }
+    .result-header .r-title {
+      font-size: 1rem;
+      font-weight: 700;
+    }
+    .result-header .r-subtitle {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      margin-top: 1px;
+    }
+
+    /* 热量大数字 */
+    .calorie-hero {
+      text-align: center;
+      padding: 18px 0 20px;
+      border-bottom: 1px solid #edf0f4;
+      margin-bottom: 16px;
+    }
+    .calorie-num {
+      font-size: 3rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--cyan-400), var(--cyan-600));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      letter-spacing: -1px;
+      line-height: 1;
+    }
+    .calorie-unit {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    /* 营养素行 */
+    .nutrient-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 11px 0;
+      border-bottom: 1px solid #edf0f4;
+    }
+    .nutrient-row:last-child { border-bottom: none; }
+    .n-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .n-icon {
+      width: 32px; height: 32px;
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1rem;
+      flex-shrink: 0;
+    }
+    .n-icon.protein  { background: rgba(52,152,219,0.12); }
+    .n-icon.carbs    { background: rgba(243,156,18,0.12); }
+    .n-icon.fat      { background: rgba(230,126,34,0.12); }
+    .n-icon.sodium   { background: rgba(142,68,173,0.12); }
+    .n-name {
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: var(--text-main);
+    }
+    .n-value {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+    .n-unit {
+      font-size: 0.75rem;
+      font-weight: 400;
+      color: var(--text-muted);
+      margin-left: 2px;
+    }
+
+    /* 元信息 */
+    .meta-strip {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px 12px;
+      background: var(--cyan-soft);
+      border-radius: 10px;
+      margin-bottom: 16px;
+      font-size: 0.8rem;
+    }
+    .meta-item .meta-label { color: var(--text-muted); }
+    .meta-item .meta-val   { font-weight: 600; color: var(--cyan-500); margin-top: 1px; }
+
+    /* ── Footer ──────────────────────────────────────── */
+    footer {
+      text-align: center;
+      margin-top: 50px;
+      padding: 20px 10px;
+      color: #7f8c8d;
+      font-size: 0.85rem;
+      border-top: 1px dashed #dcdde1;
+      line-height: 1.6;
+    }
+    footer a {
+      color: var(--cyan-500);
+      text-decoration: none;
+      font-weight: 500;
+    }
+    footer a:hover { text-decoration: underline; }
+
+    /* ── 响应式减少动效 ──────────────────────────────── */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+    }
   </style>
 </head>
 <body>
-  <h1>🍱 食物热量分析器</h1>
+  <div class="container">
 
-  <label>选择餐别：</label>
-  <select id="mealType">
-    <option value="早餐">早餐</option>
-    <option value="午餐">午餐</option>
-    <option value="晚餐">晚餐</option>
-    <option value="加餐">加餐</option>
-  </select>
+    <!-- 页头 -->
+    <div class="header">
+      <div class="icon-wrap">🍱</div>
+      <h1>食物热量分析器</h1>
+      <p>拍一张照片，AI 自动计算营养数据</p>
+    </div>
 
-  <label>上传食物图片：</label>
-  <input type="file" id="imgInput" accept="image/*">
-  <img id="preview" alt="预览">
+    <!-- 表单卡片 -->
+    <div class="card">
 
-  <button id="btn" onclick="upload()" disabled>请先选择图片</button>
+      <!-- 餐别选择 -->
+      <label class="form-label">选择餐别</label>
+      <div class="meal-grid">
+        <button type="button" class="meal-btn active" data-value="早餐" onclick="selectMeal(this)">
+          <span class="emoji">🌅</span>早餐
+        </button>
+        <button type="button" class="meal-btn" data-value="午餐" onclick="selectMeal(this)">
+          <span class="emoji">☀️</span>午餐
+        </button>
+        <button type="button" class="meal-btn" data-value="晚餐" onclick="selectMeal(this)">
+          <span class="emoji">🌙</span>晚餐
+        </button>
+        <button type="button" class="meal-btn" data-value="加餐" onclick="selectMeal(this)">
+          <span class="emoji">🍎</span>加餐
+        </button>
+      </div>
+      <select id="mealType"><option value="早餐">早餐</option></select>
 
-  <div id="error"></div>
+      <!-- 拍照上传 -->
+      <label class="form-label">拍摄或上传食物图片</label>
+      <div class="upload-zone" id="uploadZone">
+        <input
+          type="file"
+          accept="image/*"
+          capture="environment"
+          id="imageInput"
+          onchange="handleImageChange(this)"
+        >
+        <div class="upload-placeholder" id="uploadPlaceholder">
+          <span class="cam-icon">📸</span>
+          <span class="up-title">点击拍照或选择图片</span>
+          <span class="up-sub">支持 JPG、PNG、HEIC 等格式</span>
+        </div>
+      </div>
+      <img id="preview" alt="食物预览">
 
-  <div id="result">
-    <div class="row"><span class="label">📅 日期</span><span class="value" id="r-date"></span></div>
-    <div class="row"><span class="label">🍽 餐别</span><span class="value" id="r-meal"></span></div>
-    <div class="row"><span class="label">🔥 热量</span><span class="value" id="r-cal"></span></div>
-    <div class="row"><span class="label">💪 蛋白质</span><span class="value" id="r-protein"></span></div>
-    <div class="row"><span class="label">🌾 碳水化合物</span><span class="value" id="r-carbs"></span></div>
-    <div class="row"><span class="label">🧈 脂肪</span><span class="value" id="r-fat"></span></div>
-    <div class="row"><span class="label">🧂 钠</span><span class="value" id="r-sodium"></span></div>
-  </div>
+      <!-- 提交按钮 -->
+      <button class="btn-submit" id="submitBtn" disabled onclick="upload()">
+        <div class="spinner" id="spinner"></div>
+        <span id="btnText">请先选择图片</span>
+      </button>
+
+      <!-- 进度条 -->
+      <div class="progress-wrap" id="progressWrap">
+        <div class="progress-bar" id="progressBar"></div>
+      </div>
+
+      <!-- 错误提示 -->
+      <div class="error-box" id="errorBox"></div>
+    </div>
+
+    <!-- 结果卡片 -->
+    <div class="result-card" id="resultCard">
+      <div class="result-header">
+        <div class="check-circle">✓</div>
+        <div>
+          <div class="r-title">分析完成，已记录</div>
+          <div class="r-subtitle" id="r-meta-top"></div>
+        </div>
+      </div>
+
+      <!-- 热量大字 -->
+      <div class="calorie-hero">
+        <div class="calorie-num" id="r-cal">—</div>
+        <div class="calorie-unit">千卡 kcal</div>
+      </div>
+
+      <!-- 元信息条 -->
+      <div class="meta-strip">
+        <div class="meta-item">
+          <div class="meta-label">📅 日期</div>
+          <div class="meta-val" id="r-date">—</div>
+        </div>
+        <div class="meta-item">
+          <div class="meta-label">🍽 餐别</div>
+          <div class="meta-val" id="r-meal">—</div>
+        </div>
+      </div>
+
+      <!-- 营养素列表 -->
+      <div class="nutrient-row">
+        <div class="n-left">
+          <div class="n-icon protein">💪</div>
+          <span class="n-name">蛋白质</span>
+        </div>
+        <div class="n-value"><span id="r-protein">—</span><span class="n-unit">g</span></div>
+      </div>
+      <div class="nutrient-row">
+        <div class="n-left">
+          <div class="n-icon carbs">🌾</div>
+          <span class="n-name">碳水化合物</span>
+        </div>
+        <div class="n-value"><span id="r-carbs">—</span><span class="n-unit">g</span></div>
+      </div>
+      <div class="nutrient-row">
+        <div class="n-left">
+          <div class="n-icon fat">🧈</div>
+          <span class="n-name">脂肪</span>
+        </div>
+        <div class="n-value"><span id="r-fat">—</span><span class="n-unit">g</span></div>
+      </div>
+      <div class="nutrient-row">
+        <div class="n-left">
+          <div class="n-icon sodium">🧂</div>
+          <span class="n-name">钠</span>
+        </div>
+        <div class="n-value"><span id="r-sodium">—</span><span class="n-unit">mg</span></div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <footer>
+      <p>Crafted with code and care by <strong style="color:#2c3e50;">Gaia Yang</strong>
+        📩 <a href="mailto:gaiayang.edu@gmail.com">gaiayang.edu@gmail.com</a>
+      </p>
+      <p style="font-size:0.75rem; color:#95a5a6; margin-top:6px;">
+        Powered by<br>
+        🤖 Claude AI &nbsp;•&nbsp; 🔷 DeepSeek &nbsp;•&nbsp; 🐙 GitHub
+      </p>
+    </footer>
+
+  </div><!-- /container -->
 
   <script>
-    // ⚠️ 把下面这行换成你自己的 GAS 部署地址
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbxCqXeJ17fihvEu1u9_45o2lZvUJdpvnUyfmlFNGW75yCOsDhhCVLobTUZBveTXxcQP/exec";
+    // ⚠️ 替换为你自己的 GAS 部署地址
+    const GAS_URL = "https://script.google.com/macros/s/你的ID/exec";
 
-    // 图片预览 + 激活按钮
-    document.getElementById('imgInput').addEventListener('change', function () {
-      const file = this.files[0];
+    /* ── 餐别选择 ──────────────────────────────────── */
+    function selectMeal(btn) {
+      document.querySelectorAll('.meal-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('mealType').value = btn.dataset.value;
+    }
+
+    /* ── 图片选择处理 ─────────────────────────────── */
+    function handleImageChange(input) {
+      const file = input.files[0];
       if (!file) return;
+
+      // 预览
       const preview = document.getElementById('preview');
       preview.src = URL.createObjectURL(file);
       preview.style.display = 'block';
-      const btn = document.getElementById('btn');
+      document.getElementById('uploadPlaceholder').style.display = 'none';
+
+      // 激活按钮
+      const btn = document.getElementById('submitBtn');
       btn.disabled = false;
-      btn.textContent = '开始分析并记录 📊';
-    });
+      document.getElementById('btnText').textContent = '开始 AI 分析 ✨';
 
+      // 重置状态
+      document.getElementById('errorBox').style.display  = 'none';
+      document.getElementById('resultCard').style.display = 'none';
+    }
+
+    /* ── 进度条动画 ──────────────────────────────── */
+    let progressTimer = null;
+    function startProgress() {
+      const wrap = document.getElementById('progressWrap');
+      const bar  = document.getElementById('progressBar');
+      wrap.style.display = 'block';
+      bar.style.width = '0%';
+      let w = 0;
+      progressTimer = setInterval(() => {
+        w = Math.min(w + Math.random() * 8, 88);
+        bar.style.width = w + '%';
+      }, 400);
+    }
+    function finishProgress() {
+      clearInterval(progressTimer);
+      const bar = document.getElementById('progressBar');
+      bar.style.width = '100%';
+      setTimeout(() => {
+        document.getElementById('progressWrap').style.display = 'none';
+        bar.style.width = '0%';
+      }, 600);
+    }
+
+    /* ── 主提交逻辑 ──────────────────────────────── */
     async function upload() {
-      const file = document.getElementById('imgInput').files[0];
+      const file     = document.getElementById('imageInput').files[0];
       const mealType = document.getElementById('mealType').value;
-      const btn = document.getElementById('btn');
-      const errorDiv = document.getElementById('error');
-      const resultDiv = document.getElementById('result');
+      const btn      = document.getElementById('submitBtn');
+      const spinner  = document.getElementById('spinner');
+      const btnText  = document.getElementById('btnText');
+      const errorBox = document.getElementById('errorBox');
 
-      errorDiv.textContent = '';
-      resultDiv.style.display = 'none';
-      btn.disabled = true;
-      btn.textContent = '分析中，请稍候…⏳';
+      errorBox.style.display   = 'none';
+      document.getElementById('resultCard').style.display = 'none';
+
+      // 加载状态
+      btn.disabled          = true;
+      spinner.style.display = 'block';
+      btnText.textContent   = 'AI 分析中，请稍候…';
+      startProgress();
 
       try {
-        // 图片转 Base64
+        // 图片 → Base64
         const base64 = await new Promise((resolve, reject) => {
           const reader = new FileReader();
-          reader.onload = e => resolve(e.target.result.split(',')[1]);
-          reader.onerror = () => reject(new Error('图片读取失败'));
+          reader.onload  = e => resolve(e.target.result.split(',')[1]);
+          reader.onerror = () => reject(new Error('图片读取失败，请重新选择'));
           reader.readAsDataURL(file);
         });
 
-        // 发送请求到 GAS
-        const res = await fetch(GAS_URL, {
-          method: 'POST',
-          body: JSON.stringify({ image_base64: base64, meal_type: mealType })
+        // 发送到 GAS
+        const res  = await fetch(GAS_URL, {
+          method : 'POST',
+          body   : JSON.stringify({ image_base64: base64, meal_type: mealType })
         });
-
         const data = await res.json();
 
-        if (!data.success) throw new Error(data.error || '服务器返回错误');
+        if (!data.success) throw new Error(data.error || '服务器分析失败，请重试');
 
-        // 展示结果
+        // 渲染结果
         const today = new Date().toISOString().slice(0, 10);
         document.getElementById('r-date').textContent    = today;
         document.getElementById('r-meal').textContent    = mealType;
-        document.getElementById('r-cal').textContent     = data.data.calories + ' kcal';
-        document.getElementById('r-protein').textContent = data.data.protein  + ' g';
-        document.getElementById('r-carbs').textContent   = data.data.carbs    + ' g';
-        document.getElementById('r-fat').textContent     = data.data.fat      + ' g';
-        document.getElementById('r-sodium').textContent  = data.data.sodium   + ' mg';
-        resultDiv.style.display = 'block';
+        document.getElementById('r-cal').textContent     = data.data.calories;
+        document.getElementById('r-protein').textContent = data.data.protein;
+        document.getElementById('r-carbs').textContent   = data.data.carbs;
+        document.getElementById('r-fat').textContent     = data.data.fat;
+        document.getElementById('r-sodium').textContent  = data.data.sodium;
+        document.getElementById('r-meta-top').textContent = `${today} · ${mealType}`;
+
+        finishProgress();
+        document.getElementById('resultCard').style.display = 'block';
+        document.getElementById('resultCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+        btnText.textContent = '再拍一张 📷';
 
       } catch (err) {
-        errorDiv.textContent = '❌ 出错了：' + err.message;
+        finishProgress();
+        errorBox.style.display   = 'block';
+        errorBox.textContent     = '❌ ' + err.message;
+        btnText.textContent      = '重新分析 🔄';
       } finally {
-        btn.disabled = false;
-        btn.textContent = '重新分析 🔄';
+        btn.disabled          = false;
+        spinner.style.display = 'none';
       }
     }
   </script>
