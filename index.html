@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>食物热量分析器</title>
+  <style>
+    body { font-family: sans-serif; max-width: 480px; margin: 40px auto; padding: 0 16px; }
+    h1 { font-size: 1.4rem; color: #333; }
+    select, input[type=file] { width: 100%; padding: 8px; margin: 8px 0; box-sizing: border-box; }
+    button { width: 100%; padding: 12px; background: #4A90D9; color: #fff;
+             border: none; border-radius: 6px; font-size: 1rem; cursor: pointer; }
+    button:disabled { background: #aaa; }
+    #preview { width: 100%; max-height: 240px; object-fit: cover;
+               margin: 12px 0; border-radius: 8px; display: none; }
+    #result { margin-top: 16px; padding: 12px; background: #f4f4f4;
+              border-radius: 8px; display: none; }
+    .row { display: flex; justify-content: space-between; padding: 4px 0;
+           border-bottom: 1px solid #ddd; }
+    .label { color: #666; }
+    .value { font-weight: bold; }
+    #error { color: red; margin-top: 12px; }
+  </style>
+</head>
+<body>
+  <h1>🍱 食物热量分析器</h1>
+
+  <label>选择餐别：</label>
+  <select id="mealType">
+    <option value="早餐">早餐</option>
+    <option value="午餐">午餐</option>
+    <option value="晚餐">晚餐</option>
+    <option value="加餐">加餐</option>
+  </select>
+
+  <label>上传食物图片：</label>
+  <input type="file" id="imgInput" accept="image/*">
+  <img id="preview" alt="预览">
+
+  <button id="btn" onclick="upload()" disabled>请先选择图片</button>
+
+  <div id="error"></div>
+
+  <div id="result">
+    <div class="row"><span class="label">📅 日期</span><span class="value" id="r-date"></span></div>
+    <div class="row"><span class="label">🍽 餐别</span><span class="value" id="r-meal"></span></div>
+    <div class="row"><span class="label">🔥 热量</span><span class="value" id="r-cal"></span></div>
+    <div class="row"><span class="label">💪 蛋白质</span><span class="value" id="r-protein"></span></div>
+    <div class="row"><span class="label">🌾 碳水化合物</span><span class="value" id="r-carbs"></span></div>
+    <div class="row"><span class="label">🧈 脂肪</span><span class="value" id="r-fat"></span></div>
+    <div class="row"><span class="label">🧂 钠</span><span class="value" id="r-sodium"></span></div>
+  </div>
+
+  <script>
+    // ⚠️ 把下面这行换成你自己的 GAS 部署地址
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbxCqXeJ17fihvEu1u9_45o2lZvUJdpvnUyfmlFNGW75yCOsDhhCVLobTUZBveTXxcQP/exec";
+
+    // 图片预览 + 激活按钮
+    document.getElementById('imgInput').addEventListener('change', function () {
+      const file = this.files[0];
+      if (!file) return;
+      const preview = document.getElementById('preview');
+      preview.src = URL.createObjectURL(file);
+      preview.style.display = 'block';
+      const btn = document.getElementById('btn');
+      btn.disabled = false;
+      btn.textContent = '开始分析并记录 📊';
+    });
+
+    async function upload() {
+      const file = document.getElementById('imgInput').files[0];
+      const mealType = document.getElementById('mealType').value;
+      const btn = document.getElementById('btn');
+      const errorDiv = document.getElementById('error');
+      const resultDiv = document.getElementById('result');
+
+      errorDiv.textContent = '';
+      resultDiv.style.display = 'none';
+      btn.disabled = true;
+      btn.textContent = '分析中，请稍候…⏳';
+
+      try {
+        // 图片转 Base64
+        const base64 = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = e => resolve(e.target.result.split(',')[1]);
+          reader.onerror = () => reject(new Error('图片读取失败'));
+          reader.readAsDataURL(file);
+        });
+
+        // 发送请求到 GAS
+        const res = await fetch(GAS_URL, {
+          method: 'POST',
+          body: JSON.stringify({ image_base64: base64, meal_type: mealType })
+        });
+
+        const data = await res.json();
+
+        if (!data.success) throw new Error(data.error || '服务器返回错误');
+
+        // 展示结果
+        const today = new Date().toISOString().slice(0, 10);
+        document.getElementById('r-date').textContent    = today;
+        document.getElementById('r-meal').textContent    = mealType;
+        document.getElementById('r-cal').textContent     = data.data.calories + ' kcal';
+        document.getElementById('r-protein').textContent = data.data.protein  + ' g';
+        document.getElementById('r-carbs').textContent   = data.data.carbs    + ' g';
+        document.getElementById('r-fat').textContent     = data.data.fat      + ' g';
+        document.getElementById('r-sodium').textContent  = data.data.sodium   + ' mg';
+        resultDiv.style.display = 'block';
+
+      } catch (err) {
+        errorDiv.textContent = '❌ 出错了：' + err.message;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '重新分析 🔄';
+      }
+    }
+  </script>
+</body>
+</html>
