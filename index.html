@@ -138,48 +138,77 @@
     /* 隐藏的 select 用于表单值 */
     #mealType { display: none; }
 
-    /* ── 相机上传区 ──────────────────────────────────── */
+    /* ── 上传区（双按钮布局） ────────────────────────── */
     .upload-zone {
-      position: relative;
       border: 2px dashed #c8d4de;
       border-radius: 14px;
       background: rgba(240,244,248,0.5);
-      overflow: hidden;
       transition: var(--trans);
-      cursor: pointer;
+      padding: 20px 16px;
     }
-    .upload-zone:hover {
+    .upload-zone:has(.btn-camera:hover),
+    .upload-zone:has(.btn-gallery:hover) {
       border-color: var(--cyan-400);
       background: var(--cyan-soft);
     }
-    .upload-zone input[type="file"] {
-      position: absolute;
-      inset: 0;
-      width: 100%; height: 100%;
-      opacity: 0;
+    /* 两个隐藏的真实 input */
+    #cameraInput, #galleryInput {
+      display: none;
+    }
+    /* 双按钮行 */
+    .upload-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 0;
+    }
+    .btn-camera, .btn-gallery {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      padding: 16px 8px;
+      border-radius: 12px;
+      border: 1.5px solid #dde3ea;
+      background: #fff;
       cursor: pointer;
-      z-index: 2;
+      font-family: inherit;
+      transition: var(--trans);
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+    .btn-camera .btn-icon,
+    .btn-gallery .btn-icon { font-size: 1.6rem; }
+    .btn-camera:hover, .btn-gallery:hover {
+      border-color: var(--cyan-400);
+      color: var(--cyan-500);
+      background: var(--cyan-soft);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px var(--cyan-glow);
+    }
+    .btn-camera:active, .btn-gallery:active {
+      transform: translateY(0);
     }
     .upload-placeholder {
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
-      gap: 8px;
-      padding: 36px 20px;
+      gap: 4px;
+      padding: 0 0 14px;
       pointer-events: none;
     }
     .upload-placeholder .cam-icon {
-      font-size: 2.4rem;
+      font-size: 2rem;
       filter: grayscale(0.3);
     }
     .upload-placeholder .up-title {
-      font-size: 0.95rem;
+      font-size: 0.9rem;
       font-weight: 600;
       color: var(--text-main);
     }
     .upload-placeholder .up-sub {
-      font-size: 0.78rem;
+      font-size: 0.76rem;
       color: var(--text-muted);
     }
 
@@ -450,18 +479,26 @@
 
       <!-- 拍照上传 -->
       <label class="form-label">拍摄或上传食物图片</label>
+
+      <!-- 两个隐藏 input：一个强制调用摄像头，一个选相册 -->
+      <input type="file" accept="image/*" capture="environment"
+             id="cameraInput"  onchange="handleImageChange(this)">
+      <input type="file" accept="image/*"
+             id="galleryInput" onchange="handleImageChange(this)">
+
       <div class="upload-zone" id="uploadZone">
-        <input
-          type="file"
-          accept="image/*"
-          capture="environment"
-          id="imageInput"
-          onchange="handleImageChange(this)"
-        >
         <div class="upload-placeholder" id="uploadPlaceholder">
-          <span class="cam-icon">📸</span>
-          <span class="up-title">点击拍照或选择图片</span>
+          <span class="cam-icon">🖼️</span>
+          <span class="up-title">选择图片来源</span>
           <span class="up-sub">支持 JPG、PNG、HEIC 等格式</span>
+        </div>
+        <div class="upload-actions">
+          <button type="button" class="btn-camera" onclick="document.getElementById('cameraInput').click()">
+            <span class="btn-icon">📷</span>拍照
+          </button>
+          <button type="button" class="btn-gallery" onclick="document.getElementById('galleryInput').click()">
+            <span class="btn-icon">🖼️</span>从相册选择
+          </button>
         </div>
       </div>
       <img id="preview" alt="食物预览">
@@ -569,6 +606,9 @@
       const file = input.files[0];
       if (!file) return;
 
+      // 把选中的文件同步给另一个 input 引用变量，方便 upload() 读取
+      window._selectedFile = file;
+
       // 预览
       const preview = document.getElementById('preview');
       preview.src = URL.createObjectURL(file);
@@ -581,7 +621,7 @@
       document.getElementById('btnText').textContent = '开始 AI 分析 ✨';
 
       // 重置状态
-      document.getElementById('errorBox').style.display  = 'none';
+      document.getElementById('errorBox').style.display   = 'none';
       document.getElementById('resultCard').style.display = 'none';
     }
 
@@ -610,7 +650,7 @@
 
     /* ── 主提交逻辑 ──────────────────────────────── */
     async function upload() {
-      const file     = document.getElementById('imageInput').files[0];
+      const file     = window._selectedFile;
       const mealType = document.getElementById('mealType').value;
       const btn      = document.getElementById('submitBtn');
       const spinner  = document.getElementById('spinner');
